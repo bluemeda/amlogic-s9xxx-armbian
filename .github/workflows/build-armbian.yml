@@ -186,11 +186,11 @@ on:
       builder_name:
         description: "Set Armbian builder signature."
         required: false
-        default: "angel"
+        default: "bluemeda"
         type: choice
         options:
           - angel
-          - yourname
+          - bluemeda
 
 env:
   TZ: America/New_York
