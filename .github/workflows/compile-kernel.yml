@@ -17,6 +17,7 @@ on:
         type: choice
         options:
           - unifreq
+          - feryw/linux-6.5.y@master
       kernel_version:
         description: "Select kernel version"
         required: false
@@ -29,6 +30,7 @@ on:
           - 5.10.1
           - 5.15.1
           - 6.1.1
+          - 6.5.5
       kernel_auto:
         description: "Auto use the latest kernel"
         required: false
@@ -57,7 +59,7 @@ on:
         type: choice
         options:
           - -ophub
-          - -yourname
+          - -bluemeda
 
 env:
   TZ: America/New_York
