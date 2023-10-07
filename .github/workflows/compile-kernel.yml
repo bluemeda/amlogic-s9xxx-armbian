@@ -17,11 +17,11 @@ on:
         type: choice
         options:
           - unifreq
-          - feryw/linux-6.5.y@master
+          - bluemeda/linux-6.1.y
       kernel_version:
         description: "Select kernel version"
         required: false
-        default: "5.15.1_6.1.1"
+        default: "6.1.1"
         type: choice
         options:
           - 5.4.1_5.10.1
@@ -55,7 +55,7 @@ on:
       kernel_sign:
         description: "Set the kernel custom signature"
         required: false
-        default: "-ophub"
+        default: "-bluemeda"
         type: choice
         options:
           - -ophub
