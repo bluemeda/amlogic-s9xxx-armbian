@@ -233,11 +233,11 @@ on:
       builder_name:
         description: "Set Armbian builder signature."
         required: false
-        default: "ophub"
+        default: "bluemeda"
         type: choice
         options:
           - ophub
-          - angel
+          - bluemeda
 
 env:
   TZ: America/New_York
