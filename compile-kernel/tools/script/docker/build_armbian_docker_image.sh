@@ -12,7 +12,7 @@
 # Copyright (C) 2021~ https://github.com/ophub/amlogic-s9xxx-armbian
 #
 #
-# Command: ./compile-kernel/tools/script/docker/armbian_docker.sh
+# Command: ./compile-kernel/tools/script/docker/build_armbian_docker_image.sh
 #
 #======================================== Functions list ========================================
 #
