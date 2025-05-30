@@ -11,8 +11,8 @@
 # Description: Redo the Armbian rootfs file.
 # Copyright (C) 2021- https://github.com/ophub/amlogic-s9xxx-armbian
 #
-# Command: ./compile-kernel/tools/script/redo_armbian_rootfs.sh -v <VERSION_CODENAME>
-#          ./compile-kernel/tools/script/redo_armbian_rootfs.sh -v bookworm
+# Command: ./compile-kernel/tools/script/docker/build_armbian_rootfs_file.sh -v <VERSION_CODENAME>
+#          ./compile-kernel/tools/script/docker/build_armbian_rootfs_file.sh -v bookworm
 #
 #===================== Set make environment variables =====================
 #
@@ -22,6 +22,7 @@ build_path="${current_path}/build"
 image_path="${build_path}/output/images"
 cache_path="${build_path}/cache/rootfs"
 tmp_rootfs="${image_path}/tmp_rootfs"
+
 #
 # Set font color
 STEPS="[\033[95m STEPS \033[0m]"
@@ -41,23 +42,30 @@ init_var() {
     echo -e "${STEPS} Start Initializing Variables..."
 
     # If it is followed by [ : ], it means that the option requires a parameter value
-    get_all_ver="$(getopt "v:" "${@}")"
+    local options="v:"
+    parsed_args=$(getopt -o "${options}" -- "${@}")
+    [[ ${?} -ne 0 ]] && error_msg "Parameter parsing failed."
+    eval set -- "${parsed_args}"
 
-    while [[ -n "${1}" ]]; do
+    while true; do
         case "${1}" in
         -v | --VERSION_CODENAME)
             if [[ -n "${2}" ]]; then
                 version_codename="${2}"
-                shift
+                shift 2
             else
                 error_msg "Invalid -v parameter [ ${2} ]!"
             fi
             ;;
+        --)
+            shift
+            break
+            ;;
         *)
-            error_msg "Invalid option [ ${1} ]!"
+            [[ -n "${1}" ]] && error_msg "Invalid option [ ${1} ]!"
+            break
             ;;
         esac
-        shift
     done
 
     echo -e "${INFO} VERSION CODENAME: [ ${version_codename} ]"
@@ -79,35 +87,60 @@ redo_rootfs() {
     # Create temporary directory
     mkdir -p ${tmp_rootfs}
     sudo chown root:root ${tmp_rootfs}
-    [[ "${?}" == "0" ]] && echo -e "${INFO} 01. Temporary directory creation completed." || error_msg "01. Failed to create directory!"
+    [[ "${?}" == "0" ]] && echo -e "${INFO} 01. Creating temporary directory completed." || error_msg "01. Failed to create directory!"
 
     # Redo Armbian rootfs
-    [[ -n "${rootfs_file}" ]] && {
+    if [[ -n "${rootfs_file}" ]]; then
         sudo tar -mxf ${rootfs_file} -C ${tmp_rootfs}/
+        [[ "${?}" == "0" ]] && echo -e "${INFO} 02. Unpacking Armbian rootfs completed." || error_msg "02. Failed to unpack rootfs file!"
+
         cd ${tmp_rootfs}/
+
+        # SSH access is enabled by default
+        ssh_config="etc/ssh/sshd_config"
+        [[ -f "${ssh_config}" ]] && {
+            sudo sed -i "s|^#*Port .*|Port 22|g" ${ssh_config}
+            sudo sed -i "s|^#*PermitRootLogin .*|PermitRootLogin yes|g" ${ssh_config}
+            sudo sed -i "s|^#*PasswordAuthentication .*|PasswordAuthentication yes|g" ${ssh_config}
+            [[ -d "var/run/sshd" ]] || mkdir -p -m0755 var/run/sshd
+            echo -e "${INFO} 03. Adjusting sshd_config completed."
+        } || error_msg "03. Failed to adjust sshd_config!"
+
+        # Set root password to 1234
+        [[ -f "etc/shadow" ]] && {
+            rootnewpasswd="$(openssl passwd -6 "1234")"
+            sudo sed -i "s|^root:\*|root:${rootnewpasswd}|" etc/shadow
+            echo -e "${INFO} 04. Adjusting the default account completed."
+        } || error_msg "04. Failed to adjust root password!"
+
+        # Compress the rootfs file
         sudo tar -czf ${rootfs_save_name}.tar.gz *
         sudo mv -f ${rootfs_save_name}.tar.gz ../
-        [[ "${?}" == "0" ]] && echo -e "${INFO} 02. Making Armbian rootfs completed." || error_msg "02. Failed to redo rootfs!"
-    } || error_msg "02. Failed to find rootfs file!"
+        [[ "${?}" == "0" ]] && echo -e "${INFO} 05. Making Armbian rootfs completed." || error_msg "05. Failed to redo rootfs!"
+    else
+        error_msg "02. Failed to find rootfs file!"
+    fi
 
     # Rename Armbian image
-    [[ -n "${image_file}" ]] && {
+    if [[ -n "${image_file}" ]]; then
         cd ${image_path}/
         mv -f ${image_file} ${image_save_name}
         pigz -qf *.img || gzip -qf *.img
-        [[ "${?}" == "0" ]] && echo -e "${INFO} 03. Renaming Armbian image completed." || error_msg "03. Failed to rename the image!"
-    } || error_msg "03. Failed to find Armbian image!"
+        [[ "${?}" == "0" ]] && echo -e "${INFO} 06. Renaming Armbian image completed." || error_msg "06. Failed to rename the image!"
+    else
+        error_msg "06. Failed to find Armbian image!"
+    fi
 
     # Add sha256sum verification files
     cd ${image_path}/
     sudo rm -rf $(ls . | grep -vE ".img.gz|.tar.gz" | xargs) 2>/dev/null
     for file in *; do [[ ! -d "${file}" ]] && sha256sum "${file}" >"${file}.sha"; done
-    [[ "${?}" == "0" ]] && echo -e "${INFO} 04. The files in the current directory:\n$(ls -l .)" || error_msg "04. Failed to add sha256sum!"
+    [[ "${?}" == "0" ]] && echo -e "${INFO} 07. The files in the current directory:\n$(ls -lh .)" || error_msg "07. Failed to add sha256sum!"
 
     # Delete Armbian build source codes and temporary files
     cd ${build_path}/
     sudo rm -rf $(ls . | grep -v "^output$" | xargs)
-    [[ "${?}" == "0" ]] && echo -e "${INFO} 05. Armbian source code cleanup completed." || error_msg "05. Failed to clean up!"
+    [[ "${?}" == "0" ]] && echo -e "${INFO} 08. Armbian source code cleanup completed." || error_msg "08. Failed to clean up!"
 
     sync && sleep 3
 }
